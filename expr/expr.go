@@ -232,10 +232,12 @@ func Hashes(e Expander, host, pathQuery string, isIP bool) []Hash {
 
 // Prefixes expands, hashes, and truncates, deduplicating collisions while
 // preserving first-seen order.
+// Prefixes returns the deduplicated 4-byte (uint32) hash prefixes for e's
+// expansion of host+pathQuery. The prefix width is fixed at 4 bytes by the
+// []uint32 return; the n parameter is reserved and currently ignored (a Safe
+// Browsing prefix is 4 bytes, so a shorter n cannot be represented here).
 func Prefixes(e Expander, host, pathQuery string, isIP bool, n int) []uint32 {
-	if n <= 0 {
-		n = DefaultPrefixLen
-	}
+	_ = n // reserved; prefixes are 4 bytes (see doc above)
 	hs := Hashes(e, host, pathQuery, isIP)
 	out := make([]uint32, 0, len(hs))
 	seen := make(map[uint32]struct{}, len(hs))

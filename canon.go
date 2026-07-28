@@ -245,7 +245,7 @@ func Canon(raw string, opts *Options) Result {
 		res.Trace.add(StepHostDots, "host", host, d)
 		host = d
 	}
-	if l := strings.ToLower(host); l != host {
+	if l := lowerHost(host); l != host {
 		res.Trace.add(StepHostLower, "host", host, l)
 		host = l
 	}
@@ -290,6 +290,15 @@ func Canon(raw string, opts *Options) Result {
 		}
 		res.Trace.add(StepEscape, "host", host, esc)
 		host = esc
+		// Escaping can grow the host (a space or non-ASCII byte becomes a %XX
+		// triplet, inflating both the total and per-label length). checkHost
+		// bounded the DECODED host; re-validate the STORED form, or a host that
+		// just fits pre-escape is accepted here yet rejected when its already-
+		// escaped form is re-canonicalized (non-idempotent).
+		if r := checkHost(host, o.MaxHostLen); r != OK {
+			res.URL, res.Reason = u, r
+			return res
+		}
 	}
 	u.Host = host
 
@@ -333,6 +342,15 @@ func Canon(raw string, opts *Options) Result {
 		path, query = escapeRFC3986(path), escapeRFC3986(query)
 	}
 	u.Path, u.Query = path, query
+
+	// The storage profile keeps the fragment; normalize + escape it like the path
+	// so the canonical form stays ASCII-clean and idempotent (a raw non-ASCII or
+	// control byte in the fragment would otherwise leak into the stored key).
+	if !gsb && u.HasFragment {
+		f := escapeRFC3986(normalizePct(u.Fragment))
+		res.Trace.add(StepEscape, "fragment", u.Fragment, f)
+		u.Fragment = f
+	}
 
 	// --- assemble ---------------------------------------------------------
 
@@ -466,8 +484,14 @@ func checkHost(h string, maxLen int) Reason {
 	// the public internet but entirely real on an intranet, and an artifact a
 	// pipeline should record and classify rather than drop.
 	for i := 0; i < len(h); i++ {
-		switch h[i] {
-		case '/', '\\', '?', '#', '@', '[', ']', ':':
+		c := h[i]
+		// Control bytes are forbidden host code points (space, 0x20, is not — it is
+		// escaped, not rejected; see above).
+		if c < 0x20 || c == 0x7f {
+			return ErrBadHost
+		}
+		switch c {
+		case '/', '\\', '?', '#', '@', '[', ']', ':', '<', '>', '^', '|', '"':
 			return ErrBadHost
 		}
 	}
@@ -495,8 +519,10 @@ func checkHost(h string, maxLen int) Reason {
 	return OK
 }
 
-// validPort reports whether s is a bare decimal port in 1-65535. Leading
-// zeros, signs, whitespace and any non-digit are rejected.
+// validPort reports whether s is an all-digit port in 1-65535. Signs,
+// whitespace and any non-digit are rejected; leading zeros are accepted
+// (e.g. "080" is a valid port 80), matching a browser, which resolves it — and
+// the port is excluded from expression keys regardless.
 func validPort(s string) bool {
 	if s == "" || len(s) > 5 {
 		return false
@@ -542,24 +568,67 @@ func normalizePct(s string) string {
 	}
 	b := make([]byte, 0, len(s))
 	for i := 0; i < len(s); {
-		if s[i] == '%' && i+2 < len(s) {
-			h, ok1 := unhex(s[i+1])
-			l, ok2 := unhex(s[i+2])
-			if ok1 && ok2 {
-				c := h<<4 | l
-				if isUnreserved(c) {
-					b = append(b, c)
-				} else {
-					b = append(b, '%', upperhex[c>>4], upperhex[c&0x0f])
+		if s[i] == '%' {
+			if i+2 < len(s) {
+				h, ok1 := unhex(s[i+1])
+				l, ok2 := unhex(s[i+2])
+				if ok1 && ok2 {
+					c := h<<4 | l
+					if isUnreserved(c) {
+						b = append(b, c)
+					} else {
+						b = append(b, '%', upperhex[c>>4], upperhex[c&0x0f])
+					}
+					i += 3
+					continue
 				}
-				i += 3
-				continue
 			}
+			// A bare or invalid '%' is escaped to %25 here, so the result carries
+			// no ambiguous percent. escapeRFC3986 no longer touches '%' (see
+			// needsEscape3986), which is what keeps a valid triplet idempotent.
+			b = append(b, '%', '2', '5')
+			i++
+			continue
 		}
 		b = append(b, s[i])
 		i++
 	}
 	return string(b)
+}
+
+// lowerHost lower-cases the host's literal characters while keeping the two hex
+// digits of any %XX escape uppercase. The storage profile leaves reserved bytes
+// percent-encoded in the host, and a plain strings.ToLower would lower-case those
+// triplet digits (%EF -> %ef) while the escaper emits them uppercase — so the two
+// disagree across a re-canonicalization pass (non-idempotent). GSB fully unescapes
+// the host first, so it has no surviving triplet and this equals ToLower for it.
+func lowerHost(s string) string {
+	b := make([]byte, 0, len(s))
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if c == '%' && i+2 < len(s) {
+			if _, ok1 := unhex(s[i+1]); ok1 {
+				if _, ok2 := unhex(s[i+2]); ok2 {
+					b = append(b, '%', hexUpper(s[i+1]), hexUpper(s[i+2]))
+					i += 2
+					continue
+				}
+			}
+		}
+		if c >= 'A' && c <= 'Z' {
+			c += 'a' - 'A'
+		}
+		b = append(b, c)
+	}
+	return string(b)
+}
+
+// hexUpper upper-cases a hex letter (a-f -> A-F); other bytes pass through.
+func hexUpper(c byte) byte {
+	if c >= 'a' && c <= 'f' {
+		return c - ('a' - 'A')
+	}
+	return c
 }
 
 func isUnreserved(c byte) bool {
