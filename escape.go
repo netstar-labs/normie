@@ -83,11 +83,14 @@ func unhex(c byte) (byte, bool) {
 const upperhex = "0123456789ABCDEF"
 
 // needsEscapeGSB is the Safe Browsing escape set: every byte <= 0x20, every
-// byte >= 0x7f, plus '#' and '%'. Note '%' is in the set, which is what makes
-// the unescape/escape round trip idempotent — a literal percent that survived
-// unescaping comes back out as %25.
+// byte >= 0x7f, plus '#', '%', and '\'. '%' is in the set so the unescape/escape
+// round trip is idempotent — a literal percent that survived unescaping comes
+// back out as %25. '\' is in the set for the same reason: Split folds a literal
+// backslash to '/' for special schemes, so a decoded '\' (from %5C) must re-escape
+// to %5C rather than land verbatim in the path and fold on the next pass (which
+// would make the canonical form non-idempotent — a blocklist miss).
 func needsEscapeGSB(c byte) bool {
-	return c <= 0x20 || c >= 0x7f || c == '#' || c == '%'
+	return c <= 0x20 || c >= 0x7f || c == '#' || c == '%' || c == '\\'
 }
 
 // escapeGSB percent-escapes s with uppercase hex.
@@ -139,6 +142,12 @@ func escapeRFC3986(s string) string {
 	return string(b)
 }
 
+// needsEscape3986 is the storage-profile escape set. It deliberately omits '%':
+// in the storage path normalizePct is the sole authority on percent-encoding
+// (it keeps a valid %XX triplet as an uppercase triplet and escapes a bare or
+// invalid '%' to %25), so escaping '%' here too would re-escape every surviving
+// triplet — %20 -> %2520 -> %252520 ... growing on each pass and breaking
+// idempotence.
 func needsEscape3986(c byte) bool {
-	return c <= 0x20 || c >= 0x7f || c == '%' || c == '"' || c == '<' || c == '>' || c == '\\' || c == '^' || c == '`' || c == '{' || c == '|' || c == '}'
+	return c <= 0x20 || c >= 0x7f || c == '"' || c == '<' || c == '>' || c == '\\' || c == '^' || c == '`' || c == '{' || c == '|' || c == '}'
 }

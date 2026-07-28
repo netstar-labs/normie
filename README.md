@@ -123,17 +123,21 @@ e := expr.PSL{Suffix: func(h string) (int, bool) {
 | `escape.go` | Bounded repeated unescape, GSB and RFC 3986 escape sets. |
 | `canon.go` | Both profiles, host and path canonicalization, validation. |
 | `defang.go` | `Refang` and wrapper `Unwrap`. Both opt-in and both traced: they are lossy guesses about intent, not normalizations. |
-| `trace.go` | `Step`, `Trace`, and the reason codes. |
+| `trace.go` | `Step`, `StepKind`, `Trace`. |
+| `doc.go` | package doc, the `Profile` constants, and the `Reason` codes. |
 | `expr/` | Expansion strategies and hash prefixes. |
 | `cmd/normie/` | stdin/stdout filter. Canonical to stdout, rejects with reasons to stderr. |
 
 ## Performance
 
+`ns/op` is hardware-dependent (figures below from an Apple-silicon dev box);
+`B/op` and `allocs/op` are deterministic.
+
 ```
-BenchmarkSplit              144 ns/op       0 B/op    0 allocs/op
-BenchmarkCanonSimple        736 ns/op     179 B/op    5 allocs/op
-BenchmarkCanonMixed        1039 ns/op     339 B/op    8 allocs/op
-BenchmarkCanonEscapeHeavy  1945 ns/op     936 B/op   27 allocs/op
+BenchmarkSplit               83 ns/op       0 B/op    0 allocs/op
+BenchmarkCanonSimple        406 ns/op     243 B/op    7 allocs/op
+BenchmarkCanonMixed         521 ns/op     372 B/op    9 allocs/op
+BenchmarkCanonEscapeHeavy   819 ns/op     856 B/op   21 allocs/op
 ```
 
 `Split` is pure slicing. `Canon` allocates because every transformation stage

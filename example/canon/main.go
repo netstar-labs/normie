@@ -1,4 +1,4 @@
-// Runnable example: canonicalize a few adversarial URLs under both profiles and
+// Runnable example: canonicalize a few adversarial URLs under ProfileGSB and
 // show the evidence trace. Uses a nil IDNA hook (ASCII hosts) — for IDN hosts wire
 // idna.ToASCIIErr from github.com/netstar-labs/idna, kept out of this example so
 // normie stays dependency-free.

@@ -25,47 +25,60 @@ var fuzzSeeds = []string{
 	"http://a@b@c@example.com/",
 }
 
-// FuzzCanon asserts the properties a canonical form must hold: it never
-// panics, it converges in one pass, and it never emits a byte that would
-// re-parse into a different host.
+// FuzzCanon asserts the properties a canonical form must hold, for BOTH profiles
+// (the storage profile's idempotence went unfuzzed and hid a %-double-encode bug):
+// it never panics, it converges in one pass, its length does not grow across a
+// pass, and it never emits a byte that would re-parse into a different host.
 func FuzzCanon(f *testing.F) {
 	for _, s := range fuzzSeeds {
 		f.Add(s)
 	}
 	f.Fuzz(func(t *testing.T, raw string) {
-		r := Canon(raw, nil)
-		if !r.Okay() {
-			return
-		}
-
-		// Idempotence. Without this a canonical form is not a key.
-		r2 := Canon(r.Canonical, nil)
-		if !r2.Okay() {
-			t.Fatalf("pass 2 rejected %q (from %q): %v", r.Canonical, raw, r2.Reason)
-		}
-		if r2.Canonical != r.Canonical {
-			t.Fatalf("not idempotent for %q:\n  1: %q\n  2: %q", raw, r.Canonical, r2.Canonical)
-		}
-
-		// Host stability: re-splitting the canonical form must recover the
-		// same host. A failure here is the misattribution class of bug.
-		if u := Split(r.Canonical); hostForKey(u.Host) != r.Host {
-			t.Fatalf("host unstable for %q: canonical %q re-splits to %q, want %q",
-				raw, r.Canonical, u.Host, r.Host)
-		}
-
-		// No structural delimiter may survive into a non-IP host.
-		if !r.IP && strings.ContainsAny(r.Host, "/\\?#@[] ") {
-			t.Fatalf("delimiter in host %q from %q", r.Host, raw)
-		}
-
-		// Canonical output is pure ASCII with no control bytes.
-		for i := 0; i < len(r.Canonical); i++ {
-			if c := r.Canonical[i]; c <= 0x20 || c >= 0x7f {
-				t.Fatalf("unescaped byte %#02x at %d in %q (from %q)", c, i, r.Canonical, raw)
-			}
-		}
+		checkCanonProfile(t, raw, ProfileGSB)
+		checkCanonProfile(t, raw, ProfileStorage)
 	})
+}
+
+func checkCanonProfile(t *testing.T, raw string, p Profile) {
+	o := &Options{Profile: p}
+	r := Canon(raw, o)
+	if !r.Okay() {
+		return
+	}
+
+	// Idempotence. Without this a canonical form is not a key.
+	r2 := Canon(r.Canonical, o)
+	if !r2.Okay() {
+		t.Fatalf("[%s] pass 2 rejected %q (from %q): %v", p, r.Canonical, raw, r2.Reason)
+	}
+	if r2.Canonical != r.Canonical {
+		t.Fatalf("[%s] not idempotent for %q:\n  1: %q\n  2: %q", p, raw, r.Canonical, r2.Canonical)
+	}
+
+	// A pass must never GROW the canonical form — a re-encoding bomb (%20 ->
+	// %2520 -> ...) fails here even if idempotence somehow held.
+	if len(r2.Canonical) > len(r.Canonical) {
+		t.Fatalf("[%s] canonical grew on re-pass for %q: %d -> %d", p, raw, len(r.Canonical), len(r2.Canonical))
+	}
+
+	// Host stability: re-splitting the canonical form must recover the same host.
+	// A failure here is the misattribution class of bug.
+	if u := Split(r.Canonical); hostForKey(u.Host) != r.Host {
+		t.Fatalf("[%s] host unstable for %q: canonical %q re-splits to %q, want %q",
+			p, raw, r.Canonical, u.Host, r.Host)
+	}
+
+	// No structural delimiter may survive into a non-IP host.
+	if !r.IP && strings.ContainsAny(r.Host, "/\\?#@[] ") {
+		t.Fatalf("[%s] delimiter in host %q from %q", p, r.Host, raw)
+	}
+
+	// Canonical output is pure ASCII with no control bytes.
+	for i := 0; i < len(r.Canonical); i++ {
+		if c := r.Canonical[i]; c <= 0x20 || c >= 0x7f {
+			t.Fatalf("[%s] unescaped byte %#02x at %d in %q (from %q)", p, c, i, r.Canonical, raw)
+		}
+	}
 }
 
 // FuzzSplit asserts the splitter never panics and never invents bytes.
