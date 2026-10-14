@@ -350,3 +350,55 @@ func TestCollapseDots(t *testing.T) {
 		}
 	}
 }
+
+// TestIDNAProducedIP: UTS-46 mapping folds fullwidth digits and the ideographic
+// full stop to ASCII, so a host that is not an address before mapping can be one
+// after it. A browser maps first, so "１２７.０.０.１" is 127.0.0.1. Probing for an
+// address only before the hook leaves it a plain hostname: IP=false, no class, and
+// an internal literal indistinguishable from an ordinary domain.
+func TestIDNAProducedIP(t *testing.T) {
+	// a stand-in for UTS-46's mapping of the characters under test
+	hook := func(h string) (string, error) {
+		return strings.Map(func(r rune) rune {
+			switch {
+			case r >= 0xFF10 && r <= 0xFF19:
+				return '0' + (r - 0xFF10)
+			case r == 0x3002:
+				return '.'
+			}
+			return r
+		}, h), nil
+	}
+	o := &Options{IDNA: hook}
+
+	for _, tc := range []struct {
+		in        string
+		host      string
+		class     IPClass
+		rewritten bool // the mapped text was not already the dotted quad
+	}{
+		{"http://１２７.０.０.１/", "127.0.0.1", IPLoopback, false},
+		{"http://８.８.８.８/", "8.8.8.8", IPPublic, false},
+		{"http://８.８.２０５６/", "8.8.8.8", IPPublic, true},
+		{"http://0x7f。0。0。1/", "127.0.0.1", IPLoopback, true},
+		{"http://１０.０.０.１:8080/x", "10.0.0.1", IPPrivate, false},
+	} {
+		r := Canon(tc.in, o)
+		if !r.Okay() || r.Host != tc.host || !r.IP || r.IPClass != tc.class || !r.Addr.IsValid() {
+			t.Errorf("Canon(%q) = ok=%v host=%q ip=%v class=%v; want host=%q ip=true class=%v",
+				tc.in, r.Okay(), r.Host, r.IP, r.IPClass, tc.host, tc.class)
+		}
+		// the trace shows the mapping; the address rewrite is a step only when the
+		// mapped text was not already the dotted quad (no-op steps are not recorded)
+		if !r.Trace.Has(StepIDNA) {
+			t.Errorf("Canon(%q): idna step not recorded", tc.in)
+		}
+		if r.Trace.Has(StepHostIP) != tc.rewritten {
+			t.Errorf("Canon(%q): host-ip step recorded = %v, want %v", tc.in, r.Trace.Has(StepHostIP), tc.rewritten)
+		}
+		// the canonical form is a fixed point
+		if again := Canon(r.Canonical, o); again.Canonical != r.Canonical {
+			t.Errorf("Canon(%q) not idempotent: %q -> %q", tc.in, r.Canonical, again.Canonical)
+		}
+	}
+}
