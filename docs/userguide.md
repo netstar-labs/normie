@@ -54,6 +54,13 @@ Non-ASCII hosts need the injected hook to agree with browser resolution. Use
 but *not* what a browser resolves. `Result.HadNonASCII` + `idna.Unicode()` + the
 profile stamp are the three things a migration keys on.
 
+The address probe runs **again after the hook**: UTS-46 folds fullwidth digits and
+the ideographic full stop to ASCII, so `http://１２７.０.０.１/` and
+`http://0x7f。0。0。1/` are `127.0.0.1` to a browser. Probing only before the hook
+left them plain hostnames (`IP=false`, no `IPClass`) and made the canonical form
+not a fixed point (`http://8.8.2056/` re-canonicalized to `8.8.8.8`). It only
+applies when an `IDNA` hook is set and the input host was non-ASCII.
+
 ## Expansion strategies (`expr/`)
 
 - `expr.GSB{}` — fixed label-count decomposition; required for GSB-format feeds, but

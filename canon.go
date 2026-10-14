@@ -275,9 +275,24 @@ func Canon(raw string, opts *Options) Result {
 			// below, which is what the Safe Browsing spec literally prescribes.
 			// It diverges from browsers; see Options.IDNA.
 		}
-		if r := checkHost(host, o.MaxHostLen); r != OK {
-			res.URL, res.Reason = u, r
-			return res
+		// UTS-46 mapping folds fullwidth digits and the ideographic full stop to
+		// ASCII, so a host that was not an address before mapping can be one
+		// after it ("１２７.０.０.１"). A browser maps first, so probe again; left a
+		// hostname, an internal literal is unclassified and the canonical form is
+		// not a fixed point (re-canonicalizing it finds the address).
+		if res.HadNonASCII && o.IDNA != nil {
+			if addr, ok := ParseHostIP(host, false); ok {
+				txt := canonIPText(addr)
+				res.Trace.add(StepHostIP, "host", host, txt)
+				res.IP, res.Addr, res.IPClass = true, addr, Classify(addr)
+				host = txt
+			}
+		}
+		if !res.IP {
+			if r := checkHost(host, o.MaxHostLen); r != OK {
+				res.URL, res.Reason = u, r
+				return res
+			}
 		}
 	}
 
