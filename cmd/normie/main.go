@@ -3,7 +3,7 @@
 // reason, so a pipeline can separate the two without parsing.
 //
 //	normie urls.txt > canonical.txt 2> rejected.txt
-//	cat urls.txt | PROFILE=storage REFANG=on normie
+//	cat urls.txt | PROFILE=storage|key REFANG=on normie
 //	normie -expr urls.txt        # emit lookup expressions instead
 //	normie -trace urls.txt       # append the transformation trace
 package main
@@ -41,8 +41,11 @@ func main() {
 		Refang:  envOn("REFANG"),
 		Unwrap:  envOn("UNWRAP"),
 	}
-	if strings.EqualFold(os.Getenv("PROFILE"), "storage") {
+	switch strings.ToLower(os.Getenv("PROFILE")) {
+	case "storage":
 		opts.Profile = normie.ProfileStorage
+	case "key":
+		opts.Profile = normie.ProfileKey
 	}
 
 	reader := os.Stdin

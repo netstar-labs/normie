@@ -14,7 +14,7 @@
 //	Canon()  — profile-specific normalization on top of the parse. This layer
 //	           produces the lookup key.
 //
-// Two profiles ship. They are not interchangeable and every stored artifact
+// Three profiles ship. They are not interchangeable and every stored artifact
 // must carry the profile identity that produced it:
 //
 //	ProfileGSB     — byte-compatible with the published Safe Browsing
@@ -24,6 +24,11 @@
 //	ProfileStorage — RFC 3986 normalization that preserves scheme, userinfo
 //	                 presence, port, and fragment. Use for the artifact graph,
 //	                 pivoting, and anything an analyst reads.
+//
+//	ProfileKey     — the key for a URL store. ProfileGSB with the default port
+//	                 dropped for the scheme, so every spelling of one
+//	                 destination is one key. Lossy by design: keep the spellings
+//	                 you observed beside the key if they matter.
 //
 // Zero external dependencies. Unicode host mapping (UTS-46) is an injected
 // seam rather than a dependency; see Options.IDNA.
@@ -42,6 +47,11 @@ const (
 	// ProfileStorage is the lossless-ish normalization used for storage,
 	// display, and pivoting.
 	ProfileStorage Profile = "netstar-canon/1"
+
+	// ProfileKey is the key for a URL store. It is ProfileGSB with the default
+	// port dropped for the scheme, so one destination is one key whatever
+	// spelling reached it.
+	ProfileKey Profile = "netstar-key/1"
 )
 
 // Reason reports why a canonicalization attempt ended as it did. It replaces a

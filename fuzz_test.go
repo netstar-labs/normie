@@ -25,7 +25,7 @@ var fuzzSeeds = []string{
 	"http://a@b@c@example.com/",
 }
 
-// FuzzCanon asserts the properties a canonical form must hold, for BOTH profiles
+// FuzzCanon asserts the properties a canonical form must hold, for ALL profiles
 // (the storage profile's idempotence went unfuzzed and hid a %-double-encode bug):
 // it never panics, it converges in one pass, its length does not grow across a
 // pass, and it never emits a byte that would re-parse into a different host.
@@ -36,6 +36,7 @@ func FuzzCanon(f *testing.F) {
 	f.Fuzz(func(t *testing.T, raw string) {
 		checkCanonProfile(t, raw, ProfileGSB)
 		checkCanonProfile(t, raw, ProfileStorage)
+		checkCanonProfile(t, raw, ProfileKey)
 	})
 }
 

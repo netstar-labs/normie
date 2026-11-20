@@ -50,21 +50,28 @@ browser resolves it fine.
 three vanish from any pipeline built on it. `ParseIPv4` here implements full
 `inet_aton` radix rules.
 
-## Two profiles, never one
+## Three profiles, never one
 
 Conflating the lookup form with the storage form is how the fragment and
 userinfo end up in a hash, or how a stored artifact ends up carrying a
 password. They are separate contracts and every persisted row carries the
 identity of the one that produced it.
 
-| | `ProfileGSB` (`gsb-canon/1`) | `ProfileStorage` (`netstar-canon/1`) |
-| --- | --- | --- |
-| purpose | lookup keys only | artifact graph, pivoting, analyst UI |
-| fragment | dropped | preserved |
-| userinfo | dropped | dropped, presence recorded |
-| default port | preserved | dropped |
-| percent handling | unescape repeatedly, then re-escape | RFC 3986 normalize only |
-| escape set | `≤0x20`, `≥0x7f`, `#`, `%` | RFC 3986 |
+| | `ProfileGSB` (`gsb-canon/1`) | `ProfileStorage` (`netstar-canon/1`) | `ProfileKey` (`netstar-key/1`) |
+| --- | --- | --- | --- |
+| purpose | Safe Browsing lookup keys | artifact graph, pivoting, analyst UI | the key of a URL store |
+| fragment | dropped | preserved | dropped |
+| userinfo | dropped | dropped, presence recorded | dropped |
+| default port | preserved | dropped | dropped |
+| percent handling | unescape repeatedly, then re-escape | RFC 3986 normalize only | unescape repeatedly, then re-escape |
+| escape set | `≤0x20`, `≥0x7f`, `#`, `%` | RFC 3986 | `≤0x20`, `≥0x7f`, `#`, `%` |
+
+`ProfileKey` is `ProfileGSB` with one change, the default port. It exists so that
+`http://h:80/` and `http://h/` are one key, and so that the stamp on a stored key says what
+produced it instead of naming a Safe Browsing contract it does not exactly follow. It drops the
+author's encoding on purpose (`/%2541` and `/A` are one key); keep the spellings you observed
+beside the key if they matter. The scheme stays in `Canonical`; a store that keys without it
+builds the key from `Host`, the port and `PathQuery`.
 
 **Stamp the profile on everything.** A hash prefix is unverifiable without it,
 and the first time you fix a canonicalization bug, every stored hash is
@@ -121,7 +128,7 @@ e := expr.PSL{Suffix: func(h string) (int, bool) {
 | `url.go` | `Split` — WHATWG-shaped grammar. Backslash folding, last-`@` userinfo, `#` as an authority terminator, scheme-vs-port disambiguation. Zero-alloc. |
 | `ip.go` | `inet_aton` IPv4, IPv6 with zone stripping, and `IPClass`. Non-routable literals are classified, not discarded — an internal C2 address is an artifact. |
 | `escape.go` | Bounded repeated unescape, GSB and RFC 3986 escape sets. |
-| `canon.go` | Both profiles, host and path canonicalization, validation. |
+| `canon.go` | The three profiles, host and path canonicalization, validation. |
 | `defang.go` | `Refang` and wrapper `Unwrap`. Both opt-in and both traced: they are lossy guesses about intent, not normalizations. |
 | `trace.go` | `Step`, `StepKind`, `Trace`. |
 | `doc.go` | package doc, the `Profile` constants, and the `Reason` codes. |

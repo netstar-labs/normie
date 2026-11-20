@@ -195,7 +195,10 @@ func Canon(raw string, opts *Options) Result {
 		return res
 	}
 
-	gsb := o.Profile == ProfileGSB
+	// ProfileKey is ProfileGSB in every respect but one: it drops the default
+	// port for the scheme, so that "http://h:80/" and "http://h/" are one key.
+	key := o.Profile == ProfileKey
+	gsb := o.Profile == ProfileGSB || key
 
 	// Fragment and userinfo are discarded by the GSB profile. Storage keeps the
 	// fragment and records that credentials were present without retaining
@@ -221,7 +224,7 @@ func Canon(raw string, opts *Options) Result {
 		res.URL, res.Reason = u, ErrBadPort
 		return res
 	}
-	if u.HasPort && (o.DropPort || (!gsb && isDefaultPort(u.Scheme, u.Port))) {
+	if u.HasPort && (o.DropPort || ((!gsb || key) && isDefaultPort(u.Scheme, u.Port))) {
 		res.Trace.add(StepDropPort, "port", u.Port, "")
 		u.Port, u.HasPort = "", false
 	}

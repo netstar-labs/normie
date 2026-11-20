@@ -13,4 +13,5 @@ For the stdin/stdout CLI, see [../cmd/normie](../cmd/normie) and the
 
 ```sh
 printf 'hxxps://www.Example[.]com/a/../b\n' | REFANG=on go run ./cmd/normie -trace
+printf 'https://example.com:443/a%%2541#f\n' | PROFILE=key go run ./cmd/normie   # https://example.com/aA
 ```

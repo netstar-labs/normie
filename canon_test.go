@@ -163,18 +163,26 @@ func TestIdempotence(t *testing.T) {
 		"http://host.com//twoslashes?more//slashes",
 		"HTTP://WWW.Example.COM:80/A/B?Q=1",
 	)
-	for _, in := range inputs {
-		r1 := Canon(in, nil)
-		if !r1.Okay() {
-			continue
-		}
-		r2 := Canon(r1.Canonical, nil)
-		if !r2.Okay() {
-			t.Errorf("second pass rejected %q (from %q): %v", r1.Canonical, in, r2.Reason)
-			continue
-		}
-		if r2.Canonical != r1.Canonical {
-			t.Errorf("not idempotent for %q:\n  pass1 %q\n  pass2 %q", in, r1.Canonical, r2.Canonical)
+	inputs = append(inputs,
+		"http://example.com:80/x#f",
+		"https://example.com:443/%2541%2541",
+		"http://168430090:80/a%2fb",
+	)
+	for _, p := range []Profile{ProfileGSB, ProfileKey} {
+		o := &Options{Profile: p}
+		for _, in := range inputs {
+			r1 := Canon(in, o)
+			if !r1.Okay() {
+				continue
+			}
+			r2 := Canon(r1.Canonical, o)
+			if !r2.Okay() {
+				t.Errorf("[%s] second pass rejected %q (from %q): %v", p, r1.Canonical, in, r2.Reason)
+				continue
+			}
+			if r2.Canonical != r1.Canonical {
+				t.Errorf("[%s] not idempotent for %q:\n  pass1 %q\n  pass2 %q", p, in, r1.Canonical, r2.Canonical)
+			}
 		}
 	}
 }
@@ -399,6 +407,67 @@ func TestIDNAProducedIP(t *testing.T) {
 		// the canonical form is a fixed point
 		if again := Canon(r.Canonical, o); again.Canonical != r.Canonical {
 			t.Errorf("Canon(%q) not idempotent: %q -> %q", tc.in, r.Canonical, again.Canonical)
+		}
+	}
+}
+
+// TestKeyProfile pins the store-key contract: ProfileGSB behaviour, except
+// that the default port for the scheme is dropped.
+func TestKeyProfile(t *testing.T) {
+	tests := []struct{ in, want string }{
+		// default port, per scheme
+		{"http://example.com:80/", "http://example.com/"},
+		{"https://example.com:443/x", "https://example.com/x"},
+		{"https://example.com:80/", "https://example.com:80/"},
+		{"http://example.com:443/", "http://example.com:443/"},
+		{"http://example.com:8080/x", "http://example.com:8080/x"},
+		// fragment and userinfo are dropped
+		{"https://example.com/x#f", "https://example.com/x"},
+		{"http://user:pw@www.Example.com/", "http://www.example.com/"},
+		// the path is unescaped repeatedly, as in ProfileGSB
+		{"http://example.com/%2541%2541", "http://example.com/AA"},
+		{"http://example.com/a%2fb", "http://example.com/a/b"},
+		// every spelling of one address is one key
+		{"http://168430090/", "http://10.10.10.10/"},
+		{"http://0x0A0A0A0A/", "http://10.10.10.10/"},
+		{"http://0x0a.0x0a.0x0a.0x0a/", "http://10.10.10.10/"},
+		{"http://012.012.012.012/", "http://10.10.10.10/"},
+		{"http://10.10.2570/", "http://10.10.10.10/"},
+		{"http://%31%30.10.10.10/", "http://10.10.10.10/"},
+		{"http://3.14/", "http://3.0.0.14/"},
+		// grammar tricks still resolve to the host a browser reaches
+		{"http://example.com#@evil.com/", "http://example.com/"},
+	}
+	for _, tc := range tests {
+		r := Canon(tc.in, &Options{Profile: ProfileKey})
+		if !r.Okay() {
+			t.Errorf("%q rejected: %v", tc.in, r.Reason)
+			continue
+		}
+		if r.Canonical != tc.want {
+			t.Errorf("%q: got %q, want %q", tc.in, r.Canonical, tc.want)
+		}
+		if r.Profile != ProfileKey {
+			t.Errorf("%q: Profile = %q, want %q", tc.in, r.Profile, ProfileKey)
+		}
+	}
+}
+
+// TestKeyProfileMatchesGSB is the differential: apart from the default port,
+// the key and ProfileGSB agree on every vector, host and path-and-query alike.
+func TestKeyProfileMatchesGSB(t *testing.T) {
+	for _, v := range gsbVectors {
+		g := Canon(v.in, &Options{Profile: ProfileGSB})
+		k := Canon(v.in, &Options{Profile: ProfileKey})
+		if g.Okay() != k.Okay() {
+			t.Errorf("%q: GSB okay=%v, key okay=%v", v.in, g.Okay(), k.Okay())
+			continue
+		}
+		if !g.Okay() {
+			continue
+		}
+		if g.Host != k.Host || g.PathQuery != k.PathQuery {
+			t.Errorf("%q: GSB %q%q, key %q%q", v.in, g.Host, g.PathQuery, k.Host, k.PathQuery)
 		}
 	}
 }

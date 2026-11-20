@@ -22,12 +22,12 @@ all resolve to `127.0.0.1` instead of vanishing from the pipeline), and classifi
 non-routable literals rather than discarding them — an internal C2 address is an
 artifact, not noise.
 
-## The line it draws: lookup vs storage
+## The line it draws: lookup, storage and key
 
-There is never one canonical form. The **lookup** form (a hash key) and the
-**storage** form (the analyst-facing artifact) are different contracts, and every
-persisted row carries the identity of the profile that produced it — `gsb-canon/1`
-or `netstar-canon/1`. Stamp it on everything: the first time a canonicalization bug
+There is never one canonical form. The **lookup** form (a hash key), the
+**storage** form (the analyst-facing artifact) and the **key** of a URL store are
+different contracts, and every persisted row carries the identity of the profile that
+produced it — `gsb-canon/1`, `netstar-canon/1` or `netstar-key/1`. Stamp it on everything: the first time a canonicalization bug
 is fixed, the stamp is the only way to know which stored hashes went stale.
 
 ## The boundary it keeps
