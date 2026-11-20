@@ -26,7 +26,7 @@ hashes := expr.Hashes(expr.GSB{}, r.Host, r.PathQuery, r.IP)
 
 | field | meaning |
 |---|---|
-| `Profile` | `ProfileGSB` (lookup key, default) or `ProfileStorage` (artifact/display) |
+| `Profile` | `ProfileGSB` (lookup key, default), `ProfileStorage` (artifact/display) or `ProfileKey` (the key of a URL store: `ProfileGSB` with the default port dropped) |
 | `IDNA` | UTS-46 hook `func(host) (string, error)`; nil percent-escapes non-ASCII (spec-literal, not browser) |
 | `Refang` | rectify defanged notation before parsing (traced; off by default) |
 | `Unwrap` | unwrap known redirector/mail-gateway wrappers (traced; off by default) |
@@ -78,7 +78,7 @@ printf 'hxxps://www.Example[.]com/a/../b\n' | REFANG=on normie -trace
 ```
 
 `cmd/normie` is a stdin/stdout filter: canonical host/URL to stdout, rejects with
-their reason to stderr. `-trace` prints the full transformation trace (the evidence
+their reason to stderr. `PROFILE=storage` or `PROFILE=key` selects the other profiles. `-trace` prints the full transformation trace (the evidence
 behind a verdict). Build it with `go build ./cmd/normie`.
 
 ## Testing

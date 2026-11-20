@@ -31,19 +31,23 @@ them is how a blocklist mis-attributes an artifact:
   host lower-casing, dot collapsing, path resolution, percent handling, IDNA via
   the seam, validation. This produces the actual lookup key.
 
-## Two profiles, never one
+## Three profiles, never one
 
-The lookup form and the storage form are distinct contracts; every stored artifact
-carries the profile identity (`Result.Profile`) that produced it.
+The lookup form, the storage form and the store key are distinct contracts; every stored
+artifact carries the profile identity (`Result.Profile`) that produced it.
 
-| | `ProfileGSB` (`gsb-canon/1`) | `ProfileStorage` (`netstar-canon/1`) |
-|---|---|---|
-| purpose | lookup keys only | artifact graph, pivoting, analyst UI |
-| fragment | dropped | preserved |
-| userinfo | dropped | dropped, presence recorded |
-| default port | preserved | dropped |
-| percent | unescape repeatedly, then re-escape | RFC 3986 normalize only |
-| escape set | `≤0x20`, `≥0x7f`, `#`, `%` | RFC 3986 |
+| | `ProfileGSB` (`gsb-canon/1`) | `ProfileStorage` (`netstar-canon/1`) | `ProfileKey` (`netstar-key/1`) |
+|---|---|---|---|
+| purpose | Safe Browsing lookup keys | artifact graph, pivoting, analyst UI | the key of a URL store |
+| fragment | dropped | preserved | dropped |
+| userinfo | dropped | dropped, presence recorded | dropped |
+| default port | preserved | dropped | dropped |
+| percent | unescape repeatedly, then re-escape | RFC 3986 normalize only | unescape repeatedly, then re-escape |
+| escape set | `≤0x20`, `≥0x7f`, `#`, `%` | RFC 3986 | `≤0x20`, `≥0x7f`, `#`, `%` |
+
+`ProfileKey` is implemented as `ProfileGSB` plus one condition in `Canon`: the default port
+for the scheme is dropped. A differential test holds it to `ProfileGSB`'s host and
+path-and-query on every vector, so the two cannot drift apart unnoticed.
 
 The **version stamp** on the profile is what makes a canonicalization change
 migratable — see [../PROFILES.md](../PROFILES.md). `Result.HadNonASCII` flags the

@@ -14,7 +14,7 @@
 //	Canon()  — profile-specific normalization on top of the parse. This layer
 //	           produces the lookup key.
 //
-// Two profiles ship. They are not interchangeable and every stored artifact
+// Three profiles ship. They are not interchangeable and every stored artifact
 // must carry the profile identity that produced it:
 //
 //	ProfileGSB     — byte-compatible with the published Safe Browsing
@@ -24,6 +24,11 @@
 //	ProfileStorage — RFC 3986 normalization that preserves scheme, userinfo
 //	                 presence, port, and fragment. Use for the artifact graph,
 //	                 pivoting, and anything an analyst reads.
+//
+//	ProfileKey     — the key for a URL store. ProfileGSB with the default port
+//	                 dropped for the scheme, so every spelling of one
+//	                 destination is one key. Lossy by design: keep the spellings
+//	                 you observed beside the key if they matter.
 //
 // Zero external dependencies. Unicode host mapping (UTS-46) is an injected
 // seam rather than a dependency; see Options.IDNA.

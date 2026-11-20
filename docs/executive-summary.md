@@ -15,11 +15,12 @@ the victim still reaches it — fail-open at the system. normie reproduces brows
 parsing (WHATWG grammar + full `inet_aton` IP rules) so the key it stores is the
 host the victim actually lands on.
 
-**The core discipline — two profiles, never one.** The lookup form and the storage
-form are separate contracts: the lookup key drops the fragment and userinfo (so a
-password never lands in a hash), while the storage form preserves them for the
-analyst graph. Every persisted row is stamped with the profile that produced it
-(`gsb-canon/1` / `netstar-canon/1`); the stamp is what makes a future
+**The core discipline — three profiles, never one.** The lookup form, the storage
+form and the store key are separate contracts: the lookup key drops the fragment and
+userinfo (so a password never lands in a hash), the storage form preserves them for
+the analyst graph, and the store key is the lookup form with the default port dropped
+so one destination is one key. Every persisted row is stamped with the profile that
+produced it (`gsb-canon/1` / `netstar-canon/1` / `netstar-key/1`); the stamp is what makes a future
 canonicalization fix migratable instead of silently corrupting the corpus.
 
 **Boundaries.** No resolution, no fetching, no verdict. UTS-46 host mapping is an
