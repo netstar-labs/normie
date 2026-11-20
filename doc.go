@@ -42,6 +42,11 @@ const (
 	// ProfileStorage is the lossless-ish normalization used for storage,
 	// display, and pivoting.
 	ProfileStorage Profile = "netstar-canon/1"
+
+	// ProfileKey is the key for a URL store. It is ProfileGSB with the default
+	// port dropped for the scheme, so one destination is one key whatever
+	// spelling reached it.
+	ProfileKey Profile = "netstar-key/1"
 )
 
 // Reason reports why a canonicalization attempt ended as it did. It replaces a
